@@ -156,6 +156,8 @@ Device ingestion (`POST /api/v1/ingest/events`, batches of 50 events, each reque
 | 16 devices, 8 senders | 2,461 events/s, p95 243 ms | **3,980 events/s, p95 191 ms** |
 | 64 devices, 32 senders | 2,198 events/s, p95 955 ms | **3,462 events/s, p95 838 ms** |
 
+On the 12-thread Windows laptop with 4 API processes, 64 devices and 32 senders: **4,462 events/s**, p50 163 ms (p95 1.26 s, because 32 senders exceed what 4 processes can serve, so requests queue). That is about 2× the same laptop with 1 process.
+
 Every run: all events accepted, 0 duplicates, 0 errors (up to 133,050 events per run). The 32-sender rows are over capacity, so their latency is mostly queueing.
 
 ## Not verified
