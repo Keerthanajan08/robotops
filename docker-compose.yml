@@ -38,10 +38,15 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://robotops:${POSTGRES_PASSWORD}@db:5432/robotops
       REDIS_URL: redis://redis:6379/0
+      WORKER_HEARTBEAT_FILE: /tmp/worker-heartbeat
     depends_on:
       api: {condition: service_healthy} # the api container applies migrations first
-    healthcheck:
-      disable: true
+    healthcheck: # unhealthy if the job loop has not beaten for 90 s (stuck or crashed loop)
+      test: ["CMD", "python", "-m", "app.worker_main", "--healthcheck"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
     restart: unless-stopped
   web:
     build: ./frontend

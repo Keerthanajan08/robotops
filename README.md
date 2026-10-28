@@ -46,7 +46,7 @@ flowchart LR
   and a rotated key stops the agent instead of retrying forever.
 - **Background workers** run as their own containers and scale with `--scale worker=N`. A job is claimed
   with a conditional UPDATE and held by a lease (token plus heartbeat). Jobs of a crashed worker are
-  recovered after the lease expires, and a worker that lost its lease stops before it can complete the job twice.
+  recovered after the lease expires, and a worker that lost its lease stops before it can complete the job twice. Each worker has its own healthcheck: the job loop touches a heartbeat file, and a frozen worker turns unhealthy within about 2 minutes (verified by SIGSTOPping one).
 - **Operations:** liveness (`/healthz`) and readiness (`/readyz`: DB required, Redis degraded-but-ready)
   endpoints. Prometheus `/metrics` labels routes by template, so cardinality stays bounded, and can be
   token-protected. It also reports queue age and device counts. Four alert rules ship with it. Other

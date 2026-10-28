@@ -31,6 +31,21 @@ log = logging.getLogger("robotops")
 
 
 LEASE_S = int(os.getenv("WORKER_LEASE_SECONDS", "60"))
+HEARTBEAT_FILE = os.getenv(
+    "WORKER_HEARTBEAT_FILE"
+)  # set by worker_main; read by the container healthcheck
+
+
+def _beat() -> None:
+    """Liveness signal: touched on every poll and every job heartbeat, so a stuck worker goes stale."""
+    if HEARTBEAT_FILE:
+        try:
+            with open(HEARTBEAT_FILE, "w") as f:
+                f.write(str(time.time()))
+        except OSError:
+            pass
+
+
 RECOVER_EVERY_S = 30
 
 
@@ -94,6 +109,7 @@ def _held(db, jid, token, **values) -> bool:
         .values(heartbeat_at=now(), **values)
     ).rowcount
     db.commit()
+    _beat()
     return n == 1
 
 
@@ -184,6 +200,7 @@ def _run(jid, token, on_complete, sleep):
 async def worker_loop(on_complete, poll_s: float = 0.5):
     last_recover = 0.0
     while True:
+        _beat()
         if (
             time.monotonic() - last_recover > RECOVER_EVERY_S
         ):  # periodic: picks up jobs of crashed peers
