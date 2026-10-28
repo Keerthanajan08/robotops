@@ -1,0 +1,6 @@
+[lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["F403", "F405", "E501", "E731", "B008"]
+
+[lint.isort]
+known-first-party = ["app", "device_agent"]

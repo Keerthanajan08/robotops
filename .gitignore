@@ -1,0 +1,10 @@
+node_modules/
+dist/
+test-results/
+playwright-report/
+*.tsbuildinfo
+.env
+*.db
+__pycache__/
+.pytest_cache/
+.ruff_cache/

@@ -1,0 +1,61 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: robotops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
+      POSTGRES_DB: robotops
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U robotops"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://robotops:${POSTGRES_PASSWORD}@db:5432/robotops
+      REDIS_URL: redis://redis:6379/0
+      ROBOTOPS_WORKER: "0" # jobs run in the separate worker service below
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    expose: ["8000"]
+    restart: unless-stopped
+  worker:
+    # Same image, different process. Scale with: docker compose up -d --scale worker=3
+    build: ./backend
+    command: ["python", "-m", "app.worker_main"]
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://robotops:${POSTGRES_PASSWORD}@db:5432/robotops
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api: {condition: service_healthy} # the api container applies migrations first
+    healthcheck:
+      disable: true
+    restart: unless-stopped
+  web:
+    build: ./frontend
+    depends_on:
+      api: {condition: service_healthy}
+    ports: ["8080:80"]
+    restart: unless-stopped
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: ["monitoring"]
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports: ["127.0.0.1:9090:9090"] # local only; never publish this port
+    depends_on: [api]
+volumes:
+  pgdata:

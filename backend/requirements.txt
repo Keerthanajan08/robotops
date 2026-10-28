@@ -1,0 +1,15 @@
+fastapi>=0.110
+uvicorn[standard]>=0.29
+sqlalchemy>=2.0
+psycopg[binary]>=3.1
+pyjwt>=2.8
+bcrypt>=4.1
+pydantic>=2.6
+alembic>=1.13
+pytest>=8
+httpx>=0.27
+redis>=5
+fakeredis>=2.20
+ruff>=0.5
+reportlab>=4
+prometheus-client>=0.20

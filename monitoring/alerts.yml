@@ -1,0 +1,30 @@
+groups:
+  - name: robotops
+    rules:
+      - alert: RobotOpsApiDown
+        expr: up{job="robotops-api"} == 0
+        for: 1m
+        labels: {severity: critical}
+        annotations:
+          summary: "RobotOps API is not answering /metrics"
+      - alert: RobotOpsHigh5xxRate
+        expr: |
+          sum(rate(robotops_http_requests_total{status=~"5.."}[5m]))
+            / clamp_min(sum(rate(robotops_http_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels: {severity: warning}
+        annotations:
+          summary: "More than 5% of API requests are failing with 5xx"
+      - alert: RobotOpsQueueStalled
+        expr: robotops_queue_oldest_job_age_seconds > 120
+        for: 2m
+        labels: {severity: warning}
+        annotations:
+          summary: "A simulation job has waited over 2 minutes; workers may be down"
+      - alert: RobotOpsSlowRequests
+        expr: |
+          histogram_quantile(0.95, sum by (le) (rate(robotops_http_request_duration_seconds_bucket[5m]))) > 1
+        for: 10m
+        labels: {severity: warning}
+        annotations:
+          summary: "p95 API latency above 1s"
