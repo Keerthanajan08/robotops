@@ -2,9 +2,35 @@
 optionally protected with METRICS_TOKEN). Request metrics use the route *template* as the label
 (e.g. /api/v1/runs/{rid}), never the raw path, so label cardinality stays bounded."""
 
-from prometheus_client import CollectorRegistry, Counter, Gauge, Histogram
+import os
 
+from prometheus_client import (
+    CollectorRegistry,
+    Counter,
+    Gauge,
+    Histogram,
+    generate_latest,
+    multiprocess,
+)
+
+# When the API runs several uvicorn worker processes (WEB_CONCURRENCY > 1), each process writes its
+# metrics to PROMETHEUS_MULTIPROC_DIR and a scrape merges them, so /metrics reports totals for the
+# whole container no matter which process answers the request.
+MULTIPROC = bool(os.environ.get("PROMETHEUS_MULTIPROC_DIR"))
+if (
+    MULTIPROC
+):  # any process sharing the image (e.g. the worker) must be able to write here
+    os.makedirs(os.environ["PROMETHEUS_MULTIPROC_DIR"], exist_ok=True)
 REGISTRY = CollectorRegistry()
+
+
+def render() -> bytes:
+    if MULTIPROC:
+        merged = CollectorRegistry()
+        multiprocess.MultiProcessCollector(merged)
+        return generate_latest(merged)
+    return generate_latest(REGISTRY)
+
 
 HTTP_REQUESTS = Counter(
     "robotops_http_requests_total",
@@ -37,16 +63,19 @@ JOBS = Gauge(
     "robotops_simulation_jobs",
     "Simulation jobs currently in each state",
     ["status"],
+    multiprocess_mode="mostrecent",  # set at scrape time from the DB; newest value wins
     registry=REGISTRY,
 )
 OLDEST_QUEUED = Gauge(
     "robotops_queue_oldest_job_age_seconds",
     "Age of the oldest queued simulation job (0 if the queue is empty). Growth means the worker is stalled.",
+    multiprocess_mode="mostrecent",  # set at scrape time from the DB; newest value wins
     registry=REGISTRY,
 )
 DEVICES = Gauge(
     "robotops_devices",
     "Registered devices by connectivity",
     ["online"],
+    multiprocess_mode="mostrecent",  # set at scrape time from the DB; newest value wins
     registry=REGISTRY,
 )

@@ -138,24 +138,32 @@ Bugs found and fixed during this verification:
 
 ## Performance
 
-Device ingestion (`POST /api/v1/ingest/events`, batches of 50 events, each request authenticated with a device key). The full Docker Compose stack (nginx → 1 API process → PostgreSQL 16 + Redis) was measured **on a single 2-vCPU / 7.8 GB cloud VM (Intel Xeon @ 2.1 GHz), with the load generator running on the same machine.** Command: `python scripts/load_ingest.py`.
+Device ingestion (`POST /api/v1/ingest/events`, batches of 50 events, each request authenticated with a device key) through the full Docker Compose stack (nginx → API → PostgreSQL 16 + Redis). Load comes from `scripts/load_ingest.py`, running on the same machine as the stack.
+
+**Step 1: fix the write path** (2-vCPU / 7.8 GB cloud VM, Intel Xeon @ 2.1 GHz, 1 API process)
 
 | Load | Before (per-event commit) | After (set-based insert) |
 |---|---|---|
-| 16 devices, 8 concurrent senders, 20 s | 538 events/s, p95 842 ms | **2,461 events/s, p95 243 ms** |
-| 64 devices, 32 concurrent senders, 60 s | 513 events/s, p95 5.8 s | **2,198 events/s, p95 955 ms** |
+| 16 devices, 8 senders | 538 events/s, p95 842 ms | **2,461 events/s, p95 243 ms** |
+| 64 devices, 32 senders (over capacity) | 513 events/s, p95 5.8 s | **2,198 events/s, p95 955 ms** |
 
-Every run: all events accepted, 0 duplicates, 0 errors (133,050 events in the largest run).
-Under load, the API process uses ~92% of one core while PostgreSQL uses ~17%, so the limit is the single
-Python process. The 32-sender row is past saturation, so its latency is mostly queueing. The API is
-stateless, so the next step is more API processes or replicas behind nginx.
+**Step 2: find the next limit.** A 12-thread Windows laptop (Docker Desktop) gave about the same result with 1 API process: **2,247 events/s, p95 258 ms** (16 devices, 8 senders). Under load the API process used about 92% of one core while PostgreSQL used about 17%. So the limit was the single Python process, not the hardware.
+
+**Step 3: run several API processes** (`WEB_CONCURRENCY`, default 4). Prometheus metrics are merged across processes. On the same 2-vCPU VM:
+
+| Load | 1 API process | 4 API processes |
+|---|---|---|
+| 16 devices, 8 senders | 2,461 events/s, p95 243 ms | **3,980 events/s, p95 191 ms** |
+| 64 devices, 32 senders | 2,198 events/s, p95 955 ms | **3,462 events/s, p95 838 ms** |
+
+Every run: all events accepted, 0 duplicates, 0 errors (up to 133,050 events per run). The 32-sender rows are over capacity, so their latency is mostly queueing.
 
 ## Not verified
 
 - The GitHub Actions workflow has not run on GitHub yet. Every job's commands, including the new
   `compose` job, were run locally.
 - No public deployment: TLS, a domain and a cloud host are untested (see `docs/DEPLOYMENT.md`).
-- Load was measured on one small machine only (see Performance). Not measured: multiple API processes, a separate load-generator host, sustained soak tests, and worker throughput.
+- Load was measured with the load generator on the same machine as the stack (see Performance). Not measured: a separate load-generator host, multiple API containers, sustained soak tests, and worker throughput.
 
 ## Known limits
 

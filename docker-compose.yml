@@ -25,6 +25,7 @@ services:
       DATABASE_URL: postgresql+psycopg://robotops:${POSTGRES_PASSWORD}@db:5432/robotops
       REDIS_URL: redis://redis:6379/0
       ROBOTOPS_WORKER: "0" # jobs run in the separate worker service below
+      WEB_CONCURRENCY: ${API_PROCESSES:-4} # uvicorn worker processes; raise to use more CPU cores
     depends_on:
       db: {condition: service_healthy}
       redis: {condition: service_healthy}

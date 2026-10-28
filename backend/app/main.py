@@ -22,7 +22,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPBearer
-from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
+from prometheus_client import CONTENT_TYPE_LATEST
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -1470,4 +1470,4 @@ def prometheus_metrics(request: Request, db=Depends(get_db)):
     )
     obs.DEVICES.labels("true").set(online.get(True, 0))
     obs.DEVICES.labels("false").set(online.get(False, 0))
-    return Response(generate_latest(obs.REGISTRY), media_type=CONTENT_TYPE_LATEST)
+    return Response(obs.render(), media_type=CONTENT_TYPE_LATEST)
